@@ -128,11 +128,13 @@ class Controller_Zones extends Controller_Application
 		$hostmaster = $hostmaster['prefval'];
 		$badZones = array();
 
+		$check_output = "";
 		$zones = $this->Zone->findAll("updated = 'yes'");
 		/*if (empty($zones))
 			$this->redirect('/');*/
 
 		foreach ($zones as $zone) {
+			$line = 0;
 			$records = $this->Record->findAll("zone = ? AND valid != 'no'", 
                                               array($zone['id']), NULL, 
                                               'host, type, pri, destination');
@@ -146,13 +148,15 @@ class Controller_Zones extends Controller_Application
 			{$zone['expire']} \t; Expire
 			{$zone['ttl']}) \t; Negative Cache TTL
 ;
-
 EOF;
+			$line = 7;
 			// Add the primary and secondary DNS
 			if (!empty($zone['pri_dns']))
-				$out .= "@		IN		NS		" . $zone['pri_dns'] . ".\n";
+				$out .= "@         IN         NS		" . $zone['pri_dns'] . ".\n";
+				$line++;
 			if (!empty($zone['sec_dns']))
-				$out .= "@		IN		NS		" . $zone['sec_dns'] . ".\n";
+				$out .= "@         IN         NS         " . $zone['sec_dns'] . ".\n";
+				$line++;
 
 			// Write the zone file
 			$fd = fopen($this->registry->zones_path . 
@@ -162,103 +166,82 @@ EOF;
                     preg_replace('/\//', '-', $zone['name']));
 
 			fwrite($fd, $out);
-			fclose($fd);
 
-			// Check if the zone file is valid
-			$cmd = $this->registry->namedcheckzone . " " . $zone['name'] . " " . 
-				$this->registry->zones_path . preg_replace('/\//', '-', $zone['name']) . 
-                ' > /dev/null';
-			system($cmd, $exit);
-
-			if ($exit == 0) {
-				if (!$this->Zone->save(array('id' => $zone['id'], 'updated' => 'no', 
-                                             'valid' => 'yes'))) {
-					die('Could not update zone');
-                }
-
-				$rebuild = true;
-			} else {
-				if (!$this->Zone->save(array('id' => $zone['id'], 'updated' => 'yes', 
-                                             'valid' => 'no'))) {
-					die('Could not update zone');
-                }
-
-				// Add zone to list of broken zones if the user has 
-                // permission to edit that zone
-				if ($_SESSION['admin'] || $zone['owner'] == $_SESSION['userid'])
-					$badZones[] = array('id' => $zone['id'], 'name' => $zone['name']);
-			}	
 			
 			// Get records associated with zone
 			$records = $this->Record->findAll("zone = ? AND valid != 'no'", 
                                               array($zone['id']), NULL, 
                                               'host, type, pri, destination');
-			if (empty($badZones)) {
-				foreach ($records as $record) {
-					// Only add priority if the record is of type 'MX'
-					if ($record['type'] == 'MX')
-						$pri = $record['pri'];
-					else
-						$pri = '';
+			foreach ($records as $record) {
+				// Only add priority if the record is of type 'MX'
+				if ($record['type'] == 'MX')
+					$pri = $record['pri'];
+				else
+					$pri = '';
 
-					// Get the right destination depending on record type
-					if (($record['type'] == 'NS' || $record['type'] == 'PTR' || 
-                         $record['type'] == 'CNAME' || $record['type'] == 'MX' || 
-                         $record['type'] == 'SRV') &&	$record['destination'] != '@') {
+				// Get the right destination depending on record type
+				if (($record['type'] == 'NS' || $record['type'] == 'PTR' || 
+					 $record['type'] == 'CNAME' || $record['type'] == 'MX' || 
+					 $record['type'] == 'SRV') &&	$record['destination'] != '@') {
 							$destination = $record['destination'] . ".";
-					} elseif ($record['type'] == 'TXT') {
-						$destination = '"' . $record['destination'] . '"';
-                    } else {
-						$destination = $record['destination'];
-                    }
+				} elseif ($record['type'] == 'TXT') {
+					$destination = '"' . $record['destination'] . '"';
+				} else {
+					$destination = $record['destination'];
+				}
 
-					$out = $record['host'] . "\tIN\t" . $record['type'] . 
-                        "\t" . $pri . "\t" . $destination . "\n";
-					
-					// Write record to end of file
-					$fd = fopen($this->registry->zones_path . 
-                                preg_replace('/\//', '-', $zone['name']), 'a');
-                    if (!$fd) {
-						die('Cannot open: ' . $this->registry->zones_path . 
-                            preg_replace('/\//', '-', $zone['name']));
-                    }
+				$out = $record['host'] . "\tIN\t" . $record['type'] .  "\t" . $pri . "\t" . $destination . "\n";
+				
+				// Write record to end of file
+				$fd = fopen($this->registry->zones_path .  preg_replace('/\//', '-', $zone['name']), 'a');
+				if (!$fd) {
+					die('Cannot open: ' . $this->registry->zones_path . 
+						preg_replace('/\//', '-', $zone['name']));
+				}
 
-					fwrite($fd, $out);
-					fclose($fd);
+				fwrite($fd, $out);
+				$line++;
+				$linetorecord[$line] = $record['id'];
+			}
 
-					// Validate the new record
-					$cmd = $this->registry->namedcheckzone . " " . $zone['name'] . 
-                        " " . $this->registry->zones_path . 
-                        preg_replace('/\//', '-', $zone['name']) . ' > /dev/null';
-					system($cmd, $exit);
-					
-					if ($exit == 0) {
-						if (!$this->Record->save(array('id' => $record['id'], 
-                                                       'valid' => 'yes'))) {
-							die('Could not update zone');
-                        }
-					} else {
-						// Remove the last record from the zone file that caused the error
-						$fd = fopen($this->registry->zones_path . 
-                                    preg_replace('/\//', '-', $zone['name']), 'r+');
-                        if (!$fd) {
-							die('Cannot open: ' . $this->registry->zones_path . 
-                                preg_replace('/\//', '-', $zone['name']));
-                        }
+			fclose($fd);
 
-						for ($i = 0; fgets($fd); $i++)
-							$addr[$i] = ftell($fd);
-
-						ftruncate($fd, $addr[$i - 2]);
-						fclose($fd);
-
-						if (!$this->Record->save(array('id' => $record['id'], 
-                                                       'valid' => 'no'))) {
-							die('Could not update zone');
-                        }
-					}	
+			// Check if the zone file is valid
+			$cmd = $this->registry->namedcheckzone . " " . $zone['name'] . " " . 
+				   $this->registry->zones_path . preg_replace('/\//', '-', $zone['name']) . " 2>&1";
+			// system($cmd, $exit);
+			exec($cmd, $results, $err);
+			$errors = array();
+			$check_output .= "\n===\n$cmd\n===\n" . join("\n", $results);
+				
+			foreach($results as $r) {
+				if(preg_match('/(.*): (.*):(\d+): (.*): (.*)/', $r, $matches)) {
+					if($linetorecord[$matches[3]] > 0) {
+						$errors[] = $linetorecord[$matches[3]];
+					}
 				}
 			}
+			foreach($linetorecord as $v) {
+				$valid = 'yes';
+				if(in_array($v, $errors)) $valid = 'no';
+				if (!$this->Record->save(array('id' => $v, 'valid' => $valid))) {
+					die('Could not update zone');
+				}
+			}
+			if(count($error) == 0 && !$err) {
+				if (!$this->Zone->save( array('id' => $zone['id'], 'updated' => 'no', 'valid' => 'yes'))) {
+					die('Could not update zone');
+				}
+			} else {
+				if (!$this->Zone->save(array('id' => $zone['id'], 'updated' => 'yes', 'valid' => 'no'))) {
+					die('Could not update zone');
+				}
+				// Add zone to list of broken zones if the user has permission to edit that zone
+				if ($_SESSION['admin'] || $zone['owner'] == $_SESSION['userid']) {
+					$badZones[] = array('id' => $zone['id'], 'name' => $zone['name']);
+				}	
+			}
+			$rebuild = true;
 		}
 
 		// Create a new config file
@@ -305,6 +288,7 @@ EOF;
 		if (!empty($badZones))
 			$this->template->badZones = $badZones;
 
+		$this->template->outputs = $check_output;
 		$this->template->badRecords = $this->Record->badRecords(1);
 	}
 }

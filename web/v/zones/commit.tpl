@@ -13,3 +13,7 @@
 Zones has been added and BIND9 has been reloaded successfully.
 {/if}
 
+<pre style="font-size:8.5pt;">
+{$outputs}
+</pre>
+
