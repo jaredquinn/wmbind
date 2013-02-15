@@ -1,3 +1,8 @@
+== WMBIND-0.3a ==
+
+    * Prevented named-checkzone running for every record written and instead parse
+	  the output to determine errors.
+
 == WMBIND-0.2 ==
 	* Added postgresql support
 
