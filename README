@@ -1,8 +1,21 @@
-Readme file for WMBIND (Web Management for BIND)
+Readme file for jaredquinn's fork of WMBIND (Web Management for BIND)
 
+* Why this fork?
+
+		WMBIND hadn't been maintained in quite some time and there were features I wanted to 
+		see incorporated.
+
+		The following features are on the road map for this fork:
+
+			Streamlining zone checks and parsing the output to determine invalid records.
+			New look and feel.
+			Integrated management of DNSSEC keys and signing of saved zone files.
+			Better management of Bind9 options for configuration files.
+			
+	
 * What is WMBIND?
 
-        WMBIND is a fork of the popular WMBIND project, which is a project for people
+        WMBIND is a fork of the popular SMBIND project, which is a project for people
         who want to administer their BIND9 DNS server(s) from a web interface,
         and delegate zones to users.
 
