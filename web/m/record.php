@@ -23,11 +23,28 @@ class Model_Record extends Model_Base
 					if (empty($_POST['host'][$i]))
 						$_POST['host'][$i] = '@';	
 
-					$data = array('id' => $_POST['host_id'][$i], 'host' => $_POST['host'][$i], 'type' => $_POST['type'][$i], 'pri' => $_POST['pri'][$i],
+						$up = $this->find("id = ?", array($_POST['host_id'][$i]), NULL, 'host','type','pri','destination','valid');
+
+						/*print '<pre>';
+					    print $_POST['host'][$i] . "=" . $up['host'] . "\n";
+					    print $_POST['type'][$i] . "=" . $up['type'] . "\n";
+					    print $_POST['pri'][$i] . "=" . $up['pri'] . "\n";
+					    print $_POST['destination'][$i] . "=" . $up['destination'] . "\n";
+						print_r($up);
+						print '</pre>';
+						 */
+
+					if($up['host'] != $_POST['host'][$i] ||
+					   $up['type'] != $_POST['type'][$i] ||
+					   $up['pri'] != $_POST['pri'][$i] ||
+					   $up['destination'] != $_POST['destination'][$i]) {
+
+					   $data = array('id' => $_POST['host_id'][$i], 'host' => $_POST['host'][$i], 'type' => $_POST['type'][$i], 'pri' => $_POST['pri'][$i],
 						'destination' => $_POST['destination'][$i], 'valid' => 'unknown');
 
-					if (!$this->save($data)) {
-						return false;
+						if (!$this->save($data)) {
+							return false;
+						}
 					}
 				}
 			}
