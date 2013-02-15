@@ -5,7 +5,7 @@
 	<title>WMBIND</title>
 	<link rel="stylesheet" media="screen" type="text/css" href="<?php echo site_addr . "/html.css"; ?>" />
 	</head><body>
-	<a href="<?php echo site_addr; ?>"><h1>WMBIND</h1></a>
+	<h1>wmBind</h1>
 	<div id="menu">
 <?php
 // Check if any zones need to be commited
